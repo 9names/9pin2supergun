@@ -22,6 +22,10 @@ Add a bidirectional level shifter for 3.3V to 5V between the Pico and pins 5, 6,
 
 Copy over `read_cd32.py` and `main.py` to your Pico (e.g. using `mpremote`) and reboot, and you should now have a Neo Geo/Supergun-compatible output from your CD32 controller. If the buttons are wrong or not to your taste, move them on the DA15 side - each button has a direct mapping to a single pin there.
 
+## Anything else
+
+This polls at 125Hz - I don't know whether a real CD32 pad will be happy with this, but I don't see why it wouldn't. The timing for each polling burst is based on what I observed with my PAL Amiga 500+, so that should be fine, but it was only polling at 50Hz. Given how little time is spent polling compared to waiting even at 125Hz, though, I can't imagine what issues might arise.
+
 ## Credits
 
 Thanks to [Mathew Carr's PSCD32 Development Diary](https://www.mrdictionary.net/PSCD32/diary/2019_08_09.htm) for documenting how the CD32 protocol actually works.
