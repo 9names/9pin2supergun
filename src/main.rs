@@ -39,7 +39,6 @@ fn get_pin_state(result: u32) -> PinState {
 fn main() -> ! {
     info!("Program start");
     let mut pac = pac::Peripherals::take().unwrap();
-    let core = pac::CorePeripherals::take().unwrap();
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
     let sio = Sio::new(pac.SIO);
 
@@ -129,7 +128,6 @@ fn main() -> ! {
         (side_set_base_id, hal::pio::PinDir::Output),
         (in_base_id, hal::pio::PinDir::Input),
     ]);
-    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
 
     let mut output_coin = pins.gpio8.into_push_pull_output();
     // Don't have coin on CD32 pad
