@@ -9,14 +9,11 @@ Aspirationally, this will also read a Mega Drive/Genesis controller (fairly simp
 
 * A Pi Pico or compatible device that exposes the GPIO pins
 * (Optional, but recommended) a level shifter for shifting the three signal pins going to the CD32 pad
-* (Perhaps needed, depending on what you're plugging it into) a level shifter to shift up the output to the DA15 port
 * A DE9 and DA15[^1] connector (ideally plug for DE9, socket for DA15)
 
 ## Setup
 
-Wire everything up as per the following (quite bad) diagram:
-
-![Schematic showing the wiring of DE9 to Pico to DA15. Sorry for not listing it out in detail in text, a proper schematic will be available later.](schematic.svg)
+Take a look at the code to see how to wire this up (it's currently different from the schematic, which I'll update later, it's not a priority given I'm the only person using it).
 
 Add a bidirectional level shifter for 3.3V to 5V between the Pico and pins 5, 6, and 9 of the DE9 to be on the safe side.
 
