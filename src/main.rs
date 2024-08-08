@@ -20,7 +20,6 @@ use hal::{
 
 use embedded_hal::digital::InputPin;
 use embedded_hal::digital::OutputPin;
-use embedded_hal::digital::StatefulOutputPin;
 
 /// The linker will place this boot block at the start of our program image. We
 /// need this to help the ROM bootloader get our code up and running.
@@ -35,10 +34,11 @@ fn get_pin_state(result: u32) -> PinState {
     PinState::from(result > 0)
 }
 
+// If using a generic two-button controller, map A+B to be start
+const MAP_GENERIC_AB_TO_START: bool = true;
+
 #[rp2040_hal::entry]
 fn main() -> ! {
-    // Choose the path for CD32 or Mega Drive
-    const USE_CD32: bool = true;
     info!("Program start");
     let mut pac: pac::Peripherals = pac::Peripherals::take().unwrap();
     let mut watchdog = Watchdog::new(pac.WATCHDOG);
@@ -65,26 +65,54 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    // Connect GPIO2 to GND for Mega Drive/generic 9-pin. high or floating for CD32.
+    let mut selector = pins.gpio2.into_pull_up_input();
+    let use_cd32 = selector.is_high().unwrap();
+
+    let mut pin_six_direction = pins.gpio27.into_push_pull_output();
+    let mut shifter_oe = pins.gpio26.into_push_pull_output_in_state(PinState::High);
+
+    let mut output_coin = InOutPin::new(pins.gpio12);
+    let mut output_start = InOutPin::new(pins.gpio11);
+    let mut output_b1 = InOutPin::new(pins.gpio7);
+    let mut output_b2 = InOutPin::new(pins.gpio8);
+    let mut output_b3 = InOutPin::new(pins.gpio9);
+    let mut output_b4 = InOutPin::new(pins.gpio10);
+    let mut output_b5 = InOutPin::new(pins.gpio13);
+    let mut output_b6 = InOutPin::new(pins.gpio14);
+    let mut output_up = InOutPin::new(pins.gpio3);
+    let mut output_down = InOutPin::new(pins.gpio4);
+    let mut output_left = InOutPin::new(pins.gpio5);
+    let mut output_right = InOutPin::new(pins.gpio6);
+
     // CD32 code
     // Ideally this would be in its own function, but I am too new to Rust to figure out the semantics there, mostly in terms of the "pac" variable.
-    if USE_CD32 {
+    if use_cd32 {
+        info!("CD32 mode");
+        pin_six_direction.set_high().unwrap();
+        // Don't have coin on CD32 pad
+        output_coin.set_high().unwrap();
         // We want to run at 125kHz
         let pio_multiplier: u16 = (clocks.system_clock.freq().to_Hz() / 125000)
             .try_into()
             .unwrap();
 
         info!("PIO multiplier is {}", pio_multiplier);
+        // Set: latch
         let set_base: Pin<_, FunctionPio0, _> = pins.gpio15.into_function();
         let set_base_id = set_base.id().num;
+        // Side set: clock/fire 1
         let side_set_base: Pin<_, FunctionPio0, _> = pins.gpio17.into_function();
         let side_set_base_id = side_set_base.id().num;
+        // In: data/fire 2
         let in_base: Pin<_, FunctionPio0, PullNone> = pins.gpio22.into_function().into_pull_type();
         let in_base_id = in_base.id().num;
-        let mut input_up = pins.gpio18.into_pull_up_input();
-        let mut input_down = pins.gpio19.into_pull_up_input();
+        // Single-purpose inputs
+        let mut input_up = pins.gpio18.into_floating_input();
+        let mut input_down = pins.gpio19.into_floating_input();
         let mut input_left = pins.gpio20.into_floating_input();
         let mut input_right = pins.gpio21.into_floating_input();
-
+        // Power output
         let mut plus_five_volts = pins.gpio16.into_push_pull_output();
         plus_five_volts.set_high().unwrap();
 
@@ -136,21 +164,8 @@ fn main() -> ! {
             (in_base_id, hal::pio::PinDir::Input),
         ]);
 
-        let mut output_coin = InOutPin::new(pins.gpio8);
-        // Don't have coin on CD32 pad
-        output_coin.set_high().unwrap();
-        let mut output_start = InOutPin::new(pins.gpio9);
-        let mut output_b1 = InOutPin::new(pins.gpio12);
-        let mut output_b2 = InOutPin::new(pins.gpio13);
-        let mut output_b3 = InOutPin::new(pins.gpio11);
-        let mut output_b4 = InOutPin::new(pins.gpio14);
-        let mut output_b5 = InOutPin::new(pins.gpio3);
-        let mut output_b6 = InOutPin::new(pins.gpio10);
-        let mut output_up = InOutPin::new(pins.gpio7);
-        let mut output_down = InOutPin::new(pins.gpio6);
-        let mut output_left = InOutPin::new(pins.gpio5);
-        let mut output_right = InOutPin::new(pins.gpio4);
-
+        // Enable the output on the level shifter
+        shifter_oe.set_low().unwrap();
         sm.start();
 
         let dma = pac.DMA.split(&mut pac.RESETS);
@@ -227,8 +242,188 @@ fn main() -> ! {
             }
         }
     } else {
-        // Add generic stuff here
-        loop {}
+        info!("MD mode");
+        pin_six_direction.set_low().unwrap();
+        // We want to run at 140kHz
+        let pio_multiplier: u16 = (clocks.system_clock.freq().to_Hz() / 140000)
+            .try_into()
+            .unwrap();
+
+        info!("PIO multiplier is {}", pio_multiplier);
+
+        //let set_base: Pin<_, FunctionPio0, _> = pins.gpio15.into_function();
+        //let set_base_id = set_base.id().num;
+        // Side set: select
+        let side_set_base: Pin<_, FunctionPio0, _> = pins.gpio16.into_function();
+        let side_set_base_id = side_set_base.id().num;
+        // In base:
+        let in_base: Pin<_, FunctionPio0, _> = pins.gpio17.into_function();
+        let in_base_id = in_base.id().num;
+        let _in_plus_one: Pin<_, FunctionPio0, _> = pins.gpio18.into_function();
+        let _in_plus_two: Pin<_, FunctionPio0, _> = pins.gpio19.into_function();
+        let _in_plus_three: Pin<_, FunctionPio0, _> = pins.gpio20.into_function();
+        let _in_plus_four: Pin<_, FunctionPio0, _> = pins.gpio21.into_function();
+        let _in_plus_five: Pin<_, FunctionPio0, _> = pins.gpio22.into_function();
+
+        let mut plus_five_volts = pins.gpio15.into_push_pull_output();
+        plus_five_volts.set_high().unwrap();
+
+        let read_md = pio_proc::pio_asm!(
+            ".side_set 1",
+            ".wrap_target",
+            "    in  pins, 6        side 0", // Start/A/GND/GND
+            "    in  pins, 6        side 1", // Normal
+            "    nop                side 0",
+            "    nop                side 1", // Same as first IN
+            "    nop                side 0", // Same as second IN
+            "    in  pins, 6        side 1", // All directions GND if 6-button
+            "    in  pins, 6        side 0", // Mode/X/Y/Z
+            "    push noblock       side 1", // Push off to FIFO
+            "    set x, 31          side 1", // These delays get it down to around 140Hz polling
+            "    nop           [6]  side 1", // This has been verified via oscilloscope rather than maths
+            "    nop           [6]  side 1",
+            "    nop           [6]  side 1",
+            "    nop           [6]  side 1",
+            "    nop           [6]  side 1",
+            "    nop           [2]  side 1",
+            "wait_loop:"                     // 30 cycles each iteration of this loop.
+            "    nop           [6]  side 1",
+            "    nop           [6]  side 1",
+            "    nop           [6]  side 1",
+            "    nop           [6]  side 1",
+            "    nop                side 1",
+            "    jmp x-- wait_loop  side 1",
+            ".wrap",
+        );
+
+        let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
+        let installed = pio.install(&read_md.program).unwrap();
+        let (mut sm, rx, _) = rp2040_hal::pio::PIOBuilder::from_installed_program(installed)
+            .side_set_pin_base(side_set_base_id)
+            .in_pin_base(in_base_id)
+            .clock_divisor_fixed_point(pio_multiplier, 0)
+            .build(sm0);
+
+        sm.set_pindirs([
+            (side_set_base_id, hal::pio::PinDir::Output),
+            (in_base_id, hal::pio::PinDir::Input),
+            (in_base_id + 1, hal::pio::PinDir::Input),
+            (in_base_id + 2, hal::pio::PinDir::Input),
+            (in_base_id + 3, hal::pio::PinDir::Input),
+            (in_base_id + 4, hal::pio::PinDir::Input),
+            (in_base_id + 5, hal::pio::PinDir::Input),
+        ]);
+
+        // Enable the output on the level shifter
+        shifter_oe.set_low().unwrap();
+        sm.start();
+
+        let dma = pac.DMA.split(&mut pac.RESETS);
+        let rx_buf = singleton!(: u32 = 0).unwrap();
+        let rx_buf2 = singleton!(: u32 = 0).unwrap();
+
+        let rx_transfer = double_buffer::Config::new((dma.ch0, dma.ch1), rx, rx_buf).start();
+        let mut rx_transfer = rx_transfer.write_next(rx_buf2);
+
+        loop {
+            if rx_transfer.is_done() {
+                let (rx_buf, next_rx_transfer) = rx_transfer.wait();
+                // We only care about 24 bits of the 32 bits, make it a bit easier to deal with
+                let our_data = *rx_buf >> 8;
+
+                if our_data & 0b000000011000011000000000 == 0 {
+                    // Mega Drive controller
+                    // Three button Mega Drive controller buttons:
+                    // Data: 0bxxxxxxxxxxxxSGGDUACRLDUA
+                    output_start
+                        .set_state(get_pin_state(our_data & 0b100000000000))
+                        .unwrap();
+                    output_down
+                        .set_state(get_pin_state(our_data & 0b000100000000))
+                        .unwrap();
+                    output_up
+                        .set_state(get_pin_state(our_data & 0b000010000000))
+                        .unwrap();
+                    output_b1
+                        .set_state(get_pin_state(our_data & 0b000001000000))
+                        .unwrap();
+                    output_b3
+                        .set_state(get_pin_state(our_data & 0b000000100000))
+                        .unwrap();
+                    output_right
+                        .set_state(get_pin_state(our_data & 0b000000010000))
+                        .unwrap();
+                    output_left
+                        .set_state(get_pin_state(our_data & 0b000000001000))
+                        .unwrap();
+                    output_b2
+                        .set_state(get_pin_state(our_data & 0b000000000001))
+                        .unwrap();
+
+                    if our_data & 0b000000011110000000000000 == 0 {
+                        // 6 button controller
+                        // Extra buttons: 0bxMXYZx
+                        let six_button_data = our_data >> 18;
+                        debug!("Got a 6 button");
+                        output_b4
+                            .set_state(get_pin_state(six_button_data & 0b001000))
+                            .unwrap();
+                        output_b5
+                            .set_state(get_pin_state(six_button_data & 0b000100))
+                            .unwrap();
+                        output_b6
+                            .set_state(get_pin_state(six_button_data & 0b000010))
+                            .unwrap();
+                        output_coin
+                            .set_state(get_pin_state(six_button_data & 0b010000))
+                            .unwrap();
+                    } else {
+                        // Tidy up buttons we don't have
+                        output_b4.set_high().unwrap();
+                        output_b5.set_high().unwrap();
+                        output_b6.set_high().unwrap();
+                        output_coin.set_high().unwrap();
+                    }
+                } else {
+                    // Generic controller
+                    // 0b2RLDU1
+                    if MAP_GENERIC_AB_TO_START == true {
+                        output_start
+                            .set_state(get_pin_state(our_data & 0b100001))
+                            .unwrap();
+                    } else {
+                        output_start.set_high().unwrap();
+                    }
+
+                    output_b1
+                        .set_state(get_pin_state(our_data & 0b000001))
+                        .unwrap();
+
+                    output_right
+                        .set_state(get_pin_state(our_data & 0b010000))
+                        .unwrap();
+                    output_left
+                        .set_state(get_pin_state(our_data & 0b001000))
+                        .unwrap();
+                    output_down
+                        .set_state(get_pin_state(our_data & 0b000100))
+                        .unwrap();
+                    output_up
+                        .set_state(get_pin_state(our_data & 0b000010))
+                        .unwrap();
+
+                    // Tidy up missing buttons
+                    output_b3.set_high().unwrap();
+                    output_b4.set_high().unwrap();
+                    output_b5.set_high().unwrap();
+                    output_b6.set_high().unwrap();
+                    output_coin.set_high().unwrap();
+                }
+
+                debug!("Got bits: {:#026b}", our_data);
+                rx_transfer = next_rx_transfer.write_next(rx_buf);
+            }
+        }
     }
 }
 
