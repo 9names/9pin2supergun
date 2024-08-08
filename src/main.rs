@@ -387,7 +387,7 @@ fn main() -> ! {
                 } else {
                     // Generic controller
                     // 0b2RLDU1
-                    if MAP_GENERIC_AB_TO_START == true {
+                    if MAP_GENERIC_AB_TO_START {
                         output_start
                             .set_state(get_pin_state(our_data & 0b100001))
                             .unwrap();
