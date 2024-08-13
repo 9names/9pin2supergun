@@ -27,7 +27,7 @@ The button S1 and the LED D1 are currently unused, they will be set up once I ha
 
 The level shifter U6 handles those inputs that are only ever inputs (pulled up to 5V). U7 handles both of the two outputs that can also be the +5V supply, and also the one remaining pin that's either an input or an output depending on whether it's in CD32 or Mega Drive mode.
 
-Build and install the firmware and you should now have a Neo Geo/Supergun-compatible output from your CD32, Mega Drive, or generic 9-pin controller. By default, pressing both buttons on a two-button controller will send START too, to disable this behaviour, change MAP_GENERIC_AB_TO_START to false.
+Build and install the firmware as of [the "pi_pico_pins" tag](https://github.com/turmoni/9pin2supergun/releases/tag/pi_pico_pins) and you should now have a Neo Geo/Supergun-compatible output from your CD32, Mega Drive, or generic 9-pin controller. By default, pressing both buttons on a two-button controller will send START too, to disable this behaviour, change MAP_GENERIC_AB_TO_START to false.
 
 ## Building
 
