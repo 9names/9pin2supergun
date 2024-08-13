@@ -69,8 +69,8 @@ fn main() -> ! {
     let mut selector = pins.gpio2.into_pull_up_input();
     let use_cd32 = selector.is_high().unwrap();
 
-    let mut pin_six_direction = pins.gpio27.into_push_pull_output();
-    let mut shifter_oe = pins.gpio26.into_push_pull_output_in_state(PinState::High);
+    let mut pin_six_direction = pins.gpio22.into_push_pull_output();
+    let mut shifter_oe = pins.gpio23.into_push_pull_output_in_state(PinState::High);
 
     let mut output_coin = InOutPin::new(pins.gpio12);
     let mut output_start = InOutPin::new(pins.gpio11);
@@ -99,21 +99,21 @@ fn main() -> ! {
 
         info!("PIO multiplier is {}", pio_multiplier);
         // Set: latch
-        let set_base: Pin<_, FunctionPio0, _> = pins.gpio15.into_function();
+        let set_base: Pin<_, FunctionPio0, _> = pins.gpio20.into_function();
         let set_base_id = set_base.id().num;
         // Side set: clock/fire 1
-        let side_set_base: Pin<_, FunctionPio0, _> = pins.gpio17.into_function();
+        let side_set_base: Pin<_, FunctionPio0, _> = pins.gpio24.into_function();
         let side_set_base_id = side_set_base.id().num;
         // In: data/fire 2
-        let in_base: Pin<_, FunctionPio0, PullNone> = pins.gpio22.into_function().into_pull_type();
+        let in_base: Pin<_, FunctionPio0, PullNone> = pins.gpio29.into_function().into_pull_type();
         let in_base_id = in_base.id().num;
         // Single-purpose inputs
-        let mut input_up = pins.gpio18.into_floating_input();
-        let mut input_down = pins.gpio19.into_floating_input();
-        let mut input_left = pins.gpio20.into_floating_input();
-        let mut input_right = pins.gpio21.into_floating_input();
+        let mut input_up = pins.gpio25.into_floating_input();
+        let mut input_down = pins.gpio26.into_floating_input();
+        let mut input_left = pins.gpio27.into_floating_input();
+        let mut input_right = pins.gpio28.into_floating_input();
         // Power output
-        let mut plus_five_volts = pins.gpio16.into_push_pull_output();
+        let mut plus_five_volts = pins.gpio21.into_push_pull_output();
         plus_five_volts.set_high().unwrap();
 
         let read_cd32 = pio_proc::pio_asm!(
@@ -254,18 +254,18 @@ fn main() -> ! {
         //let set_base: Pin<_, FunctionPio0, _> = pins.gpio15.into_function();
         //let set_base_id = set_base.id().num;
         // Side set: select
-        let side_set_base: Pin<_, FunctionPio0, _> = pins.gpio16.into_function();
+        let side_set_base: Pin<_, FunctionPio0, _> = pins.gpio21.into_function();
         let side_set_base_id = side_set_base.id().num;
         // In base:
-        let in_base: Pin<_, FunctionPio0, _> = pins.gpio17.into_function();
+        let in_base: Pin<_, FunctionPio0, _> = pins.gpio24.into_function();
         let in_base_id = in_base.id().num;
-        let _in_plus_one: Pin<_, FunctionPio0, _> = pins.gpio18.into_function();
-        let _in_plus_two: Pin<_, FunctionPio0, _> = pins.gpio19.into_function();
-        let _in_plus_three: Pin<_, FunctionPio0, _> = pins.gpio20.into_function();
-        let _in_plus_four: Pin<_, FunctionPio0, _> = pins.gpio21.into_function();
-        let _in_plus_five: Pin<_, FunctionPio0, _> = pins.gpio22.into_function();
+        let _in_plus_one: Pin<_, FunctionPio0, _> = pins.gpio25.into_function();
+        let _in_plus_two: Pin<_, FunctionPio0, _> = pins.gpio26.into_function();
+        let _in_plus_three: Pin<_, FunctionPio0, _> = pins.gpio27.into_function();
+        let _in_plus_four: Pin<_, FunctionPio0, _> = pins.gpio28.into_function();
+        let _in_plus_five: Pin<_, FunctionPio0, _> = pins.gpio29.into_function();
 
-        let mut plus_five_volts = pins.gpio15.into_push_pull_output();
+        let mut plus_five_volts = pins.gpio20.into_push_pull_output();
         plus_five_volts.set_high().unwrap();
 
         let read_md = pio_proc::pio_asm!(
