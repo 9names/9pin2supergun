@@ -8,13 +8,13 @@ use defmt_rtt as _;
 use panic_probe as _;
 use rp2040_hal::{
     self as hal,
-    gpio::{DynPinId, PullNone},
+    gpio::{DynInOutPin, DynPinId, PullNone},
 };
 
 use hal::{
     clocks::{init_clocks_and_plls, Clock},
     dma::{double_buffer, DMAExt},
-    gpio::{FunctionPio0, InOutPin, Pin, PinState},
+    gpio::{FunctionPio0, Pin, PinState},
     pac,
     pio::PIOExt,
     sio::Sio,
@@ -99,6 +99,21 @@ struct PioPins {
     base_5: Pin<DynPinId, FunctionPio0, PullNone>,
 }
 
+struct OutPins {
+    coin: DynInOutPin,
+    start: DynInOutPin,
+    b1: DynInOutPin,
+    b2: DynInOutPin,
+    b3: DynInOutPin,
+    b4: DynInOutPin,
+    b5: DynInOutPin,
+    b6: DynInOutPin,
+    up: DynInOutPin,
+    down: DynInOutPin,
+    left: DynInOutPin,
+    right: DynInOutPin,
+}
+
 fn do_controller_things(
     pins: rp2040_hal::gpio::Pins,
     pio_multiplier: u16,
@@ -114,18 +129,20 @@ fn do_controller_things(
     let mut pin_six_direction = pins.gpio22.into_push_pull_output();
     let mut shifter_oe = pins.gpio23.into_push_pull_output_in_state(PinState::High);
 
-    let mut output_coin = InOutPin::new(pins.gpio12);
-    let mut output_start = InOutPin::new(pins.gpio11);
-    let mut output_b1 = InOutPin::new(pins.gpio7);
-    let mut output_b2 = InOutPin::new(pins.gpio8);
-    let mut output_b3 = InOutPin::new(pins.gpio9);
-    let mut output_b4 = InOutPin::new(pins.gpio10);
-    let mut output_b5 = InOutPin::new(pins.gpio13);
-    let mut output_b6 = InOutPin::new(pins.gpio14);
-    let mut output_up = InOutPin::new(pins.gpio3);
-    let mut output_down = InOutPin::new(pins.gpio4);
-    let mut output_left = InOutPin::new(pins.gpio5);
-    let mut output_right = InOutPin::new(pins.gpio6);
+    let mut out = OutPins {
+        coin: DynInOutPin::new(pins.gpio12.into_pull_type().into_function().into_dyn_pin()),
+        start: DynInOutPin::new(pins.gpio11.into_pull_type().into_function().into_dyn_pin()),
+        b1: DynInOutPin::new(pins.gpio7.into_pull_type().into_function().into_dyn_pin()),
+        b2: DynInOutPin::new(pins.gpio8.into_pull_type().into_function().into_dyn_pin()),
+        b3: DynInOutPin::new(pins.gpio9.into_pull_type().into_function().into_dyn_pin()),
+        b4: DynInOutPin::new(pins.gpio10.into_pull_type().into_function().into_dyn_pin()),
+        b5: DynInOutPin::new(pins.gpio13.into_pull_type().into_function().into_dyn_pin()),
+        b6: DynInOutPin::new(pins.gpio14.into_pull_type().into_function().into_dyn_pin()),
+        up: DynInOutPin::new(pins.gpio3.into_pull_type().into_function().into_dyn_pin()),
+        down: DynInOutPin::new(pins.gpio4.into_pull_type().into_function().into_dyn_pin()),
+        left: DynInOutPin::new(pins.gpio5.into_pull_type().into_function().into_dyn_pin()),
+        right: DynInOutPin::new(pins.gpio6.into_pull_type().into_function().into_dyn_pin()),
+    };
 
     info!("MD mode");
     pin_six_direction.set_low().unwrap();
@@ -238,28 +255,28 @@ fn do_controller_things(
                 // Mega Drive controller
                 // Three button Mega Drive controller buttons:
                 // Data: 0bxxxxxxxxxxxxSGGDUACRLDUA
-                output_start
+                out.start
                     .set_state(get_pin_state(our_data & 0b100000000000))
                     .unwrap();
-                output_down
+                out.down
                     .set_state(get_pin_state(our_data & 0b000100000000))
                     .unwrap();
-                output_up
+                out.up
                     .set_state(get_pin_state(our_data & 0b000010000000))
                     .unwrap();
-                output_b1
+                out.b1
                     .set_state(get_pin_state(our_data & 0b000001000000))
                     .unwrap();
-                output_b3
+                out.b3
                     .set_state(get_pin_state(our_data & 0b000000100000))
                     .unwrap();
-                output_right
+                out.right
                     .set_state(get_pin_state(our_data & 0b000000010000))
                     .unwrap();
-                output_left
+                out.left
                     .set_state(get_pin_state(our_data & 0b000000001000))
                     .unwrap();
-                output_b2
+                out.b2
                     .set_state(get_pin_state(our_data & 0b000000000001))
                     .unwrap();
 
@@ -268,59 +285,59 @@ fn do_controller_things(
                     // Extra buttons: 0bxMXYZx
                     let six_button_data = our_data >> 18;
                     debug!("Got a 6 button");
-                    output_b4
+                    out.b4
                         .set_state(get_pin_state(six_button_data & 0b001000))
                         .unwrap();
-                    output_b5
+                    out.b5
                         .set_state(get_pin_state(six_button_data & 0b000100))
                         .unwrap();
-                    output_b6
+                    out.b6
                         .set_state(get_pin_state(six_button_data & 0b000010))
                         .unwrap();
-                    output_coin
+                    out.coin
                         .set_state(get_pin_state(six_button_data & 0b010000))
                         .unwrap();
                 } else {
                     // Tidy up buttons we don't have
-                    output_b4.set_high().unwrap();
-                    output_b5.set_high().unwrap();
-                    output_b6.set_high().unwrap();
-                    output_coin.set_high().unwrap();
+                    out.b4.set_high().unwrap();
+                    out.b5.set_high().unwrap();
+                    out.b6.set_high().unwrap();
+                    out.coin.set_high().unwrap();
                 }
             } else {
                 // Generic controller
                 // 0b2RLDU1
                 if MAP_GENERIC_AB_TO_START {
-                    output_start
+                    out.start
                         .set_state(get_pin_state(our_data & 0b100001))
                         .unwrap();
                 } else {
-                    output_start.set_high().unwrap();
+                    out.start.set_high().unwrap();
                 }
 
-                output_b1
+                out.b1
                     .set_state(get_pin_state(our_data & 0b000001))
                     .unwrap();
 
-                output_right
+                out.right
                     .set_state(get_pin_state(our_data & 0b010000))
                     .unwrap();
-                output_left
+                out.left
                     .set_state(get_pin_state(our_data & 0b001000))
                     .unwrap();
-                output_down
+                out.down
                     .set_state(get_pin_state(our_data & 0b000100))
                     .unwrap();
-                output_up
+                out.up
                     .set_state(get_pin_state(our_data & 0b000010))
                     .unwrap();
 
                 // Tidy up missing buttons
-                output_b3.set_high().unwrap();
-                output_b4.set_high().unwrap();
-                output_b5.set_high().unwrap();
-                output_b6.set_high().unwrap();
-                output_coin.set_high().unwrap();
+                out.b3.set_high().unwrap();
+                out.b4.set_high().unwrap();
+                out.b5.set_high().unwrap();
+                out.b6.set_high().unwrap();
+                out.coin.set_high().unwrap();
             }
 
             debug!("Got bits: {:#026b}", our_data);
