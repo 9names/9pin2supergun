@@ -6,7 +6,10 @@ use cortex_m::singleton;
 use defmt::*;
 use defmt_rtt as _;
 use panic_probe as _;
-use rp2040_hal as hal;
+use rp2040_hal::{
+    self as hal,
+    gpio::{DynPinId, PullNone},
+};
 
 use hal::{
     clocks::{init_clocks_and_plls, Clock},
@@ -83,6 +86,19 @@ fn main() -> ! {
     do_controller_things(pins, pio_multiplier, pio, sm0, dma.ch0, dma.ch1);
 }
 
+#[allow(dead_code)]
+struct PioPins {
+    sideset_base_id: u8,
+    sideset_base: Pin<DynPinId, FunctionPio0, PullNone>,
+    base_pin_id: u8,
+    base: Pin<DynPinId, FunctionPio0, PullNone>,
+    base_1: Pin<DynPinId, FunctionPio0, PullNone>,
+    base_2: Pin<DynPinId, FunctionPio0, PullNone>,
+    base_3: Pin<DynPinId, FunctionPio0, PullNone>,
+    base_4: Pin<DynPinId, FunctionPio0, PullNone>,
+    base_5: Pin<DynPinId, FunctionPio0, PullNone>,
+}
+
 fn do_controller_things(
     pins: rp2040_hal::gpio::Pins,
     pio_multiplier: u16,
@@ -114,19 +130,45 @@ fn do_controller_things(
     info!("MD mode");
     pin_six_direction.set_low().unwrap();
 
-    //let set_base: Pin<_, FunctionPio0, _> = pins.gpio15.into_function();
-    //let set_base_id = set_base.id().num;
-    // Side set: select
-    let side_set_base: Pin<_, FunctionPio0, _> = pins.gpio21.into_function();
-    let side_set_base_id = side_set_base.id().num;
-    // In base:
-    let in_base: Pin<_, FunctionPio0, _> = pins.gpio24.into_function();
-    let in_base_id = in_base.id().num;
-    let _in_plus_one: Pin<_, FunctionPio0, _> = pins.gpio25.into_function();
-    let _in_plus_two: Pin<_, FunctionPio0, _> = pins.gpio26.into_function();
-    let _in_plus_three: Pin<_, FunctionPio0, _> = pins.gpio27.into_function();
-    let _in_plus_four: Pin<_, FunctionPio0, _> = pins.gpio28.into_function();
-    let _in_plus_five: Pin<_, FunctionPio0, _> = pins.gpio29.into_function();
+    let piopins = PioPins {
+        sideset_base_id: pins.gpio21.id().num,
+        sideset_base: pins
+            .gpio21
+            .into_floating_input()
+            .into_function()
+            .into_dyn_pin(),
+        base_pin_id: pins.gpio24.id().num,
+        base: pins
+            .gpio24
+            .into_floating_input()
+            .into_function()
+            .into_dyn_pin(),
+        base_1: pins
+            .gpio25
+            .into_floating_input()
+            .into_function()
+            .into_dyn_pin(),
+        base_2: pins
+            .gpio26
+            .into_floating_input()
+            .into_function()
+            .into_dyn_pin(),
+        base_3: pins
+            .gpio27
+            .into_floating_input()
+            .into_function()
+            .into_dyn_pin(),
+        base_4: pins
+            .gpio28
+            .into_floating_input()
+            .into_function()
+            .into_dyn_pin(),
+        base_5: pins
+            .gpio29
+            .into_floating_input()
+            .into_function()
+            .into_dyn_pin(),
+    };
 
     let mut plus_five_volts = pins.gpio20.into_push_pull_output();
     plus_five_volts.set_high().unwrap();
@@ -161,19 +203,19 @@ fn do_controller_things(
 
     let installed = pio.install(&read_md.program).unwrap();
     let (mut sm, rx, _) = rp2040_hal::pio::PIOBuilder::from_installed_program(installed)
-        .side_set_pin_base(side_set_base_id)
-        .in_pin_base(in_base_id)
+        .side_set_pin_base(piopins.sideset_base_id)
+        .in_pin_base(piopins.base_pin_id)
         .clock_divisor_fixed_point(pio_multiplier, 0)
         .build(sm);
 
     sm.set_pindirs([
-        (side_set_base_id, hal::pio::PinDir::Output),
-        (in_base_id, hal::pio::PinDir::Input),
-        (in_base_id + 1, hal::pio::PinDir::Input),
-        (in_base_id + 2, hal::pio::PinDir::Input),
-        (in_base_id + 3, hal::pio::PinDir::Input),
-        (in_base_id + 4, hal::pio::PinDir::Input),
-        (in_base_id + 5, hal::pio::PinDir::Input),
+        (piopins.sideset_base_id, hal::pio::PinDir::Output),
+        (piopins.base_pin_id, hal::pio::PinDir::Input),
+        (piopins.base_pin_id + 1, hal::pio::PinDir::Input),
+        (piopins.base_pin_id + 2, hal::pio::PinDir::Input),
+        (piopins.base_pin_id + 3, hal::pio::PinDir::Input),
+        (piopins.base_pin_id + 4, hal::pio::PinDir::Input),
+        (piopins.base_pin_id + 5, hal::pio::PinDir::Input),
     ]);
 
     // Enable the output on the level shifter
