@@ -11,7 +11,7 @@ use rp2040_hal as hal;
 use hal::{
     clocks::{init_clocks_and_plls, Clock},
     dma::{double_buffer, DMAExt},
-    gpio::{FunctionPio0, InOutPin, Pin, PinState, PullNone},
+    gpio::{FunctionPio0, InOutPin, Pin, PinState},
     pac,
     pio::PIOExt,
     sio::Sio,
@@ -33,6 +33,11 @@ pub static BOOT2: [u8; 256] = rp2040_boot2::BOOT_LOADER_GENERIC_03H;
 fn get_pin_state(result: u32) -> PinState {
     PinState::from(result > 0)
 }
+
+type Pio0 = rp2040_hal::pio::PIO<pac::PIO0>;
+type Sm0 = rp2040_hal::pio::UninitStateMachine<(pac::PIO0, rp2040_hal::pio::SM0)>;
+type DmaChannel0 = rp2040_hal::dma::Channel<rp2040_hal::dma::CH0>;
+type DmaChannel1 = rp2040_hal::dma::Channel<rp2040_hal::dma::CH1>;
 
 // If using a generic two-button controller, map A+B to be start
 const MAP_GENERIC_AB_TO_START: bool = true;
@@ -65,9 +70,30 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    // We want to run at 140kHz
+    let pio_multiplier: u16 = (clocks.system_clock.freq().to_Hz() / 140000)
+        .try_into()
+        .unwrap();
+
+    info!("PIO multiplier is {}", pio_multiplier);
+
+    let (pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
+    let dma = pac.DMA.split(&mut pac.RESETS);
+
+    do_controller_things(pins, pio_multiplier, pio, sm0, dma.ch0, dma.ch1);
+}
+
+fn do_controller_things(
+    pins: rp2040_hal::gpio::Pins,
+    pio_multiplier: u16,
+    mut pio: Pio0,
+    sm: Sm0,
+    dma_0: DmaChannel0,
+    dma_1: DmaChannel1,
+) -> ! {
     // Connect GPIO2 to GND for Mega Drive/generic 9-pin. high or floating for CD32.
     let mut selector = pins.gpio2.into_pull_up_input();
-    let use_cd32 = selector.is_high().unwrap();
+    let _use_cd32 = selector.is_high().unwrap();
 
     let mut pin_six_direction = pins.gpio22.into_push_pull_output();
     let mut shifter_oe = pins.gpio23.into_push_pull_output_in_state(PinState::High);
@@ -87,12 +113,6 @@ fn main() -> ! {
 
     info!("MD mode");
     pin_six_direction.set_low().unwrap();
-    // We want to run at 140kHz
-    let pio_multiplier: u16 = (clocks.system_clock.freq().to_Hz() / 140000)
-        .try_into()
-        .unwrap();
-
-    info!("PIO multiplier is {}", pio_multiplier);
 
     //let set_base: Pin<_, FunctionPio0, _> = pins.gpio15.into_function();
     //let set_base_id = set_base.id().num;
@@ -139,13 +159,12 @@ fn main() -> ! {
         ".wrap",
     );
 
-    let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
     let installed = pio.install(&read_md.program).unwrap();
     let (mut sm, rx, _) = rp2040_hal::pio::PIOBuilder::from_installed_program(installed)
         .side_set_pin_base(side_set_base_id)
         .in_pin_base(in_base_id)
         .clock_divisor_fixed_point(pio_multiplier, 0)
-        .build(sm0);
+        .build(sm);
 
     sm.set_pindirs([
         (side_set_base_id, hal::pio::PinDir::Output),
@@ -161,11 +180,10 @@ fn main() -> ! {
     shifter_oe.set_low().unwrap();
     sm.start();
 
-    let dma = pac.DMA.split(&mut pac.RESETS);
     let rx_buf = singleton!(: u32 = 0).unwrap();
     let rx_buf2 = singleton!(: u32 = 0).unwrap();
 
-    let rx_transfer = double_buffer::Config::new((dma.ch0, dma.ch1), rx, rx_buf).start();
+    let rx_transfer = double_buffer::Config::new((dma_0, dma_1), rx, rx_buf).start();
     let mut rx_transfer = rx_transfer.write_next(rx_buf2);
 
     loop {
